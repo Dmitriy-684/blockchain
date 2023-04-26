@@ -56,7 +56,14 @@ def check_answer(request):
         body = json.loads(body)
         answer = str(body["answer"]).strip().lower()
         wallet = str(body["wallet"])
-        level = str(body["id"])
+        user = User.objects.get(wallet=wallet)
+        if answer == user.level.answer:
+            user.level.number += 1
+            user.save()
+            data = {"caption": user.level.reward.caption, "hash": user.level.reward.hash, "theory": user.level.reward.theory}
+            return HttpResponse(f"{data}")
+        else:
+            return HttpResponse("Wrong answer")
     elif request.method == "GET":
         return HttpResponse(status=500, reason="Only for post request")
 

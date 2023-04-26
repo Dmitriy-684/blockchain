@@ -13,5 +13,6 @@ urlpatterns = [
     path("post-user/", views.post_for_registration),
     path("get-level/", views.get_level),
     path("post-level/", views.post_for_level),
+    path("check-answer", views.check_answer),
 ]
 
