@@ -20,6 +20,7 @@ class Level(models.Model):
     answer = models.CharField(max_length=64, verbose_name="Ответ на вопрос")
     reward = models.ForeignKey("Reward", on_delete=models.DO_NOTHING, related_name="RewardOf")
     sublevel = models.IntegerField(default=1, verbose_name="Уровень сложности")
+    number = models.IntegerField(default=1, verbose_name="Номер уровня в зависимости от сложности")
 
 
 class Character(models.Model):

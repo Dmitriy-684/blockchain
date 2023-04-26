@@ -8,5 +8,10 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("login/", views.user_authorization),
     path("post-wallet/", views.post_for_authorization),
+    path("get-theory/", views.get_theory),
+    path("register/", views.user_registration),
+    path("post-user/", views.post_for_registration),
+    path("get-level/", views.get_level),
+    path("post-level/", views.post_for_level),
 ]
 
