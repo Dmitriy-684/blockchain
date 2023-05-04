@@ -1,10 +1,14 @@
 from django.http import HttpResponse
+from django.http import JsonResponse
+from django.core import serializers
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ObjectDoesNotExist
 from .models import *
 import json
 import requests
+from json import dumps
+from .encoders import TheoryEncoder
 
 @csrf_exempt
 def user_registration(request):
@@ -33,7 +37,18 @@ def user_registration(request):
 
 @csrf_exempt
 def get_theory(request):
-    data = tuple({"topic": theory.topic, "content": theory.content, "bonus": theory.bonus} for theory in Theory.objects.all())
+    data = tuple({"topic": theory.topic,
+                  "content": theory.content,
+                  "bonus": theory.bonus} for theory in Theory.objects.all())
+    return JsonResponse(data, safe=False)
+
+@csrf_exempt
+def get_character(request):
+    body = request.body.decode("utf-8")
+    body = json.loads(body)
+    pk = body["pk"]
+    character = Character.objects.filter(pk=pk)
+    data = serializers.serialize("json", character)
     return HttpResponse(data)
 
 @csrf_exempt
@@ -41,13 +56,14 @@ def get_level(request):
     body = request.body.decode("utf-8")
     body = json.loads(body)
     sublevel = body["sublevel"]
-    levels = Level.objects.all()
+    levels = Level.objects.filter(sublevel=sublevel)
     data = [{"number": level.number,
              "sublevel": level.sublevel,
              "topic": level.topic,
              "task": level.task,
-             } for level in [level for level in levels if level.sublevel == int(sublevel)]]
-    return HttpResponse(data)
+             } for level in tuple(level for level in levels if level.sublevel == int(sublevel))]
+    data = sorted(data, key=lambda level: level["number"])
+    return JsonResponse(data, safe=False)
 
 @csrf_exempt
 def check_answer(request):
@@ -58,15 +74,25 @@ def check_answer(request):
         wallet = str(body["wallet"])
         user = User.objects.get(wallet=wallet)
         if answer == user.level.answer:
-            user.level.number += 1
-            user.save()
-            data = {"caption": user.level.reward.caption, "hash": user.level.reward.hash, "theory": user.level.reward.theory}
-            return HttpResponse(f"{data}")
+            data = {
+                "caption": user.level.reward.caption,
+                "hash": user.level.reward.hash,
+                "topic": user.level.reward.theory.topic,
+                "content": user.level.reward.theory.content,
+                "bonus": user.level.reward.theory.bonus,
+                "number": -1
+            }
+            for level in Level.objects.all():
+                if (level.sublevel == user.level.sublevel) and (level.number == user.level.number + 1):
+                    user.level = level
+                    user.save()
+                    break
+            data["number"] = user.level.number
+            return JsonResponse(data)
         else:
-            return HttpResponse("Wrong answer")
+            return HttpResponse(f"{user.level.answer} {answer}")
     elif request.method == "GET":
         return HttpResponse(status=500, reason="Only for post request")
-
 
 
 @csrf_exempt
@@ -76,7 +102,7 @@ def user_authorization(request):
         body = json.loads(body)
         try:
             user = User.objects.get(wallet=body["wallet"])
-            return HttpResponse({"contract": user.contract,
+            return JsonResponse({"contract": user.contract,
                                  "name": user.character.name,
                                  "image": user.character.image,
                                  "number": user.level.number})
@@ -112,6 +138,16 @@ def post_for_registration(request):
 def post_for_level(request):
     url = "http://127.0.0.1:8000/get-level/"
     data = {"sublevel": "1"}
+    res = requests.post(url, json=data)
+    if res.status_code == 200:
+        return HttpResponse(f"<h4>Данные успешно отправлены {data}<h4>")
+    else:
+        return HttpResponse(f"<h4>Данные успешно отправлены {res.status_code}<h4>")
+
+
+def post_for_character(request):
+    url = "http://127.0.0.1:8000/get-character/"
+    data = {"pk": "1"}
     res = requests.post(url, json=data)
     if res.status_code == 200:
         return HttpResponse(f"<h4>Данные успешно отправлены {data}<h4>")
