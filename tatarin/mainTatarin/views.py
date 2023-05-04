@@ -1,10 +1,11 @@
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ObjectDoesNotExist
 from .models import *
 import json
 import requests
+
 
 @csrf_exempt
 def user_registration(request):
@@ -31,10 +32,14 @@ def user_registration(request):
     elif request.method == "GET":
         return HttpResponse(status=500, reason="Only for post request")
 
+
 @csrf_exempt
 def get_theory(request):
-    data = tuple({"topic": theory.topic, "content": theory.content, "bonus": theory.bonus} for theory in Theory.objects.all())
-    return HttpResponse(data)
+    data = tuple({"topic": theory.topic,
+                  "content": theory.content,
+                  "bonus": theory.bonus} for theory in Theory.objects.all())
+    return JsonResponse(data, safe=False)
+
 
 @csrf_exempt
 def get_level(request):
@@ -43,11 +48,13 @@ def get_level(request):
     sublevel = body["sublevel"]
     levels = Level.objects.all()
     data = [{"number": level.number,
-             "sublevel": level.sublevel,
-             "topic": level.topic,
-             "task": level.task,
-             } for level in [level for level in levels if level.sublevel == int(sublevel)]]
-    return HttpResponse(data)
+                  "sublevel": level.sublevel,
+                  "topic": level.topic,
+                  "task": level.task,
+                  } for level in tuple(level for level in levels if level.sublevel == int(sublevel))]
+    data = sorted(data, key=lambda level: level["number"])
+    return JsonResponse(data, safe=False)
+
 
 @csrf_exempt
 def check_answer(request):
@@ -58,15 +65,26 @@ def check_answer(request):
         wallet = str(body["wallet"])
         user = User.objects.get(wallet=wallet)
         if answer == user.level.answer:
-            user.level.number += 1
-            user.save()
-            data = {"caption": user.level.reward.caption, "hash": user.level.reward.hash, "theory": user.level.reward.theory}
-            return HttpResponse(f"{data}")
+            data = {
+                    "caption": user.level.reward.caption,
+                    "hash": user.level.reward.hash,
+                    "topic": user.level.reward.theory.topic,
+                    "content": user.level.reward.theory.content,
+                    "bonus": user.level.reward.theory.bonus,
+                    "number": -1,
+                    }
+            for level in Level.objects.all():
+                if (level.sublevel == user.level.sublevel) and (level.number == user.level.number + 1):
+                    user.level = level
+                    user.save()
+                    break
+            data["number"] = user.level.number
+            return JsonResponse(data)
+
         else:
-            return HttpResponse("Wrong answer")
+            return HttpResponse(status=500, reason=f"Ожидалось {user.level.answer}, а получили {answer}")
     elif request.method == "GET":
         return HttpResponse(status=500, reason="Only for post request")
-
 
 
 @csrf_exempt
@@ -76,7 +94,7 @@ def user_authorization(request):
         body = json.loads(body)
         try:
             user = User.objects.get(wallet=body["wallet"])
-            return HttpResponse({"contract": user.contract,
+            return JsonResponse({"contract": user.contract,
                                  "name": user.character.name,
                                  "image": user.character.image,
                                  "number": user.level.number})
