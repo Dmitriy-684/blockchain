@@ -5,6 +5,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from .models import *
 import json
 import requests
+from ipfs import ipfs_load_json
 
 
 @csrf_exempt
@@ -65,6 +66,7 @@ def check_answer(request):
         wallet = str(body["wallet"])
         user = User.objects.get(wallet=wallet)
         if answer == user.level.answer:
+            ipfsHash = ipfs_load_json(user.wallet, user.level)
             data = {
                     "caption": user.level.reward.caption,
                     "hash": user.level.reward.hash,
@@ -72,6 +74,7 @@ def check_answer(request):
                     "content": user.level.reward.theory.content,
                     "bonus": user.level.reward.theory.bonus,
                     "number": -1,
+                    "ipfsHash": ipfsHash
                     }
             for level in Level.objects.all():
                 if (level.sublevel == user.level.sublevel) and (level.number == user.level.number + 1):
@@ -82,7 +85,7 @@ def check_answer(request):
             return JsonResponse(data)
 
         else:
-            return HttpResponse(status=500, reason=f"Ожидалось {user.level.answer}, а получили {answer}")
+            return HttpResponse(status=500, reason=f"Неправильный ответ!")
     elif request.method == "GET":
         return HttpResponse(status=500, reason="Only for post request")
 
